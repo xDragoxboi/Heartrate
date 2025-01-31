@@ -1,4 +1,5 @@
 # Heartbeat Detection from Phyphox Accelerometer Data
+[![Try Now](https://img.shields.io/badge/Try%20Now-Browser%20Version-blue?style=for-the-badge)](https://xdragoxboi.github.io/Heartrate/)
 
 Detect heartbeats using Z-axis accelerometer data recorded by the Phyphox app.
 
