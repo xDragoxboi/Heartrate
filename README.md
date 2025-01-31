@@ -22,11 +22,11 @@ git clone https://github.com/xDragoxboi/Heartrate-/
 pip install -r requirements.txt
 ```
 ## Usage
-1. Record accelerometer data using Phyphox (Z-axis only recommended)
-2. Export data as CSV from Phyphox
+1. Record accelerometer data using Phyphox (No gravity)
+2. Export data as CSV from Phyphox and save as "Raw Data.csv".
 3. Run the detection script:
 ```bash
-python heart_rate_detection.py --input path/to/your_data.csv
+python run.py
 ```
 
 
