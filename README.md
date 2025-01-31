@@ -34,4 +34,4 @@ python heart_rate_detection.py --input path/to/your_data.csv
 ```
 Average Heart Rate: 72.54 BPM
 ```
-![Sample Visualization](images/output.png)
+![Sample Visualization](images/Output.png)
