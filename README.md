@@ -14,7 +14,7 @@ Detect heartbeats using Z-axis accelerometer data recorded by the Phyphox app.
 ## Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/xDragoxboi/Heartrate-/
+git clone https://github.com/xDragoxboi/Heartrate/
 ```
 
 2. Install dependencies:
@@ -32,6 +32,6 @@ python run.py
 
 ## Example Output
 ```
-Average Heart Rate: 72.54 BPM
+Average Heart Rate: BPM
 ```
 ![Sample Visualization](images/Output.png)
