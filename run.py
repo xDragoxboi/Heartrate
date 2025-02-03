@@ -3,13 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, butter, filtfilt
 
-# Load data
+# Load Data
 data = pd.read_csv('Raw Data.csv') 
 time = data['Time (s)'].values
 z_axis = data['Linear Acceleration z (m/s^2)'].values
 
 
-
+#is it lupus
 
 # remove noise
 def lowpass_filter(data, cutoff, sample_rate, order=2):
@@ -18,22 +18,24 @@ def lowpass_filter(data, cutoff, sample_rate, order=2):
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     return filtfilt(b, a, data)
 
-# Sample rate (adjust based on your data)
-sample_rate = 100  # Hz (common for Phyphox)
+# Sample rate (adjust based on your data , no change if your data is from phyphox)
+sample_rate = 100  # Hz 
 
 # Apply low-pass filter to smooth the signal
 z_filtered = lowpass_filter(z_axis, cutoff=5, sample_rate=sample_rate)
 
-# Dynamic threshold (e.g. 24% of the max amplitude)
-threshold = 0.24 * np.max(z_filtered)
+# Dynamic threshold (e.g. 26% of the max amplitude)
+threshold = 0.26 * np.max(z_filtered)
 
-# Find peaks with a refractory period , peroid best kept between 0.28s-0.4s
-peaks, _ = find_peaks(z_filtered, height=threshold, distance=int(0.4 * sample_rate))
+# Find peaks with a refractory period , peroid best kept between 0.22s-0.4s (assuming target doesn't have lupus)
+# refactory peroid is tricky at the moment and may need change for different amplitudes, i can make this a bit more dynamic but i won't because i have no time uwu
+peaks, _ = find_peaks(z_filtered, height=threshold, distance=int(0.3 * sample_rate))
 
 
 intervals = np.diff(time[peaks])
-#Final calculation 
+
 bpm = 60 / np.mean(intervals)
+
 
 print(f"Average Heart Rate: {bpm:.2f} BPM")
 
