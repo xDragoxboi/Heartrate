@@ -14,7 +14,8 @@ Detect heartbeats using Z-axis accelerometer data recorded by the Phyphox app.
 
 ## Requirements
 - Python 3.8+
-
+- Working Heart ( Minimum BPM of NOT DEAD )
+- 
 ## Installation
 1. Clone the repository:
 ```bash
