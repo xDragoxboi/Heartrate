@@ -1,518 +1,204 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Live Heartbeat Detector (Experimental) 1.01</title>
-    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico"> <!-- Make sure favicon.ico exists -->
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
     <meta name="google-site-verification" content="ZqQN2ihzaAli8qWJ-hDvcNWZuUKIvLMj-kQPHY5Z_ls" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Heartbeat Detector 🐉</title>
     <style>
-        :root {
-            --bg-color: #1f1f23;
-            --text-color: #e0e0e0;
-            --primary-color: #ff5050; /* Vibrant red/pink */
-            --secondary-color: #404045;
-            --accent-color: #00e090; /* Bright green for peaks/BPM */
-            --border-color: #333;
-        }
-
-        html, body {
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #1a1a1a;
+            color: white;
             margin: 0;
-            padding: 0;
-            height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            overflow: hidden; /* Prevent scrolling */
+            padding: 20px;
         }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between; /* Push footer down */
-            padding: 15px;
-            box-sizing: border-box;
-            height: 100%;
-            gap: 15px; /* Spacing between elements */
-        }
-
-        h1 {
-            margin: 0 0 10px 0;
-            color: var(--primary-color);
-            font-weight: 500;
-        }
-
-        .controls {
-            display: flex;
-            flex-wrap: wrap; /* Allow wrapping on small screens */
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            background-color: var(--secondary-color);
-            padding: 10px 15px;
-            border-radius: 8px;
+        canvas {
             width: 100%;
-            max-width: 500px; /* Limit width */
-            box-sizing: border-box;
+            height: 300px;
+            border: 1px solid #444;
         }
-
-        .controls label {
-            margin-right: 5px;
-            font-size: 0.9em;
+        .controls {
+            margin: 20px;
         }
-
-        .controls input[type="number"],
-        .controls button {
-            padding: 8px 12px;
+        input, button {
+            padding: 10px;
+            margin: 5px;
             border-radius: 5px;
-            border: 1px solid var(--border-color);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-size: 0.9em;
+            border: 1px solid #444;
         }
-
-        .controls input[type="number"] {
-             width: 60px; /* Adjust width */
-        }
-
-        .controls button {
-            background-color: var(--primary-color);
+        button {
+            background: #ff4444;
             color: white;
             cursor: pointer;
-            border: none;
-            transition: background-color 0.2s ease;
-            min-width: 150px; /* Ensure button text fits */
         }
-
-        .controls button:hover {
-            background-color: #e04040;
-        }
-         .controls button.monitoring {
-             background-color: var(--accent-color);
-             color: var(--bg-color);
-         }
-         .controls button.monitoring:hover {
-             background-color: #00c070;
-         }
-
-
-        #chart-container {
-            width: 100%;
-            flex-grow: 1; /* Allow canvas to take up available space */
-            display: flex; /* Needed for canvas to respect container size */
-            min-height: 200px; /* Ensure minimum height */
-            max-height: 40vh; /* Limit maximum height */
-        }
-
-        canvas {
-            display: block; /* Remove potential extra space below */
-            width: 100%;
-            height: 100%;
-            background-color: #28282c; /* Slightly different background */
-            border-radius: 5px;
-            border: 1px solid var(--border-color);
-        }
-
-        #bpm-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin: 10px 0;
-        }
-
         #bpm {
-            font-size: clamp(2.5em, 8vw, 4em); /* Responsive font size */
-            font-weight: bold;
-            color: var(--primary-color);
-            line-height: 1;
-            min-height: 1.2em; /* Prevent layout shift when text appears */
-            transition: color 0.2s ease;
+            font-size: 2.5em;
+            margin: 20px;
         }
-
-        #bpm.detected {
-            color: var(--accent-color);
-            animation: pulse 0.4s ease-out;
+        .detected {
+            color: #00ff00 !important;
+            animation: pulse 0.5s;
         }
-
-        #status {
-            font-size: 0.9em;
-            color: #aaa;
-            min-height: 1.1em; /* Prevent layout shift */
-            margin-top: 5px;
-        }
-
-        .footer {
-             font-size: 0.8em;
-             color: #888;
-             text-align: center;
-             padding: 5px 0;
-             width: 100%;
-        }
-        .footer strong {
-            color: var(--primary-color);
-        }
-
         @keyframes pulse {
             0% { transform: scale(1); }
-            50% { transform: scale(1.08); }
+            50% { transform: scale(1.1); }
             100% { transform: scale(1); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Live Heartbeat Detector <span style="font-size: 0.8em;">(Experimental 🐉)</span></h1>
-
-        <div class="controls">
-            <label for="threshold">Threshold:</label>
-            <input type="number" id="threshold" step="0.05" value="0.2" title="Peak detection sensitivity threshold">
-            <label for="filterWindow">Filter:</label>
-            <input type="number" id="filterWindow" step="1" value="5" min="1" max="20" title="Moving average filter window size (samples)">
-            <button id="toggleBtn">Start Monitoring</button>
-        </div>
-
-        <div id="chart-container">
-            <canvas id="chart"></canvas>
-        </div>
-
-        <div id="bpm-container">
-            <div id="bpm">-- BPM</div>
-            <div id="status">Press Start & place device firmly on chest. Hold still!</div>
-        </div>
-
-        <div class="footer">
-            <strong>Disclaimer:</strong> This uses the accelerometer and is highly experimental.
-            Accuracy depends heavily on placement, stillness, and device sensors.
-            <strong>Not for medical use.</strong>
-        </div>
+    <h1>Live Heartbeat Detector 🐉</h1>
+    <div class="controls">
+        <input type="number" id="threshold" step="0.1" value="0.3" placeholder="Threshold">
+        <button id="toggleBtn">Start Monitoring</button>
     </div>
+    <canvas id="chart"></canvas>
+    <div id="bpm">-- BPM</div>
+    <div id="status">Press Start and place device on chest</div>
 
     <script>
         const canvas = document.getElementById('chart');
         const ctx = canvas.getContext('2d');
         const thresholdInput = document.getElementById('threshold');
-        const filterWindowInput = document.getElementById('filterWindow');
         const toggleBtn = document.getElementById('toggleBtn');
         const bpmDisplay = document.getElementById('bpm');
         const statusText = document.getElementById('status');
 
-        // --- Configuration ---
-        const BUFFER_SIZE = 300; // Store ~3 seconds of data at ~100Hz
-        const REFRACTORY_PERIOD_MS = 250; // Min ms between detected peaks
-        const BPM_CALCULATION_WINDOW = 5; // Use last 5 intervals for BPM avg
-
-        // --- State Variables ---
         let isMonitoring = false;
-        let motionSensor = null;
         let lastPeakTime = 0;
-        let peakIntervals = []; // Store intervals between peaks in ms
-        let dataBuffer = []; // Stores { time: ms, z: raw_value, fz: filtered_value, peak: boolean }
-        let animationFrameId = null;
+        let peaks = [];
+        let dataBuffer = [];
+        const bufferSize = 500; // 2 seconds at 100Hz
+        const sampleRate = 100; // Hz
+        const refractoryPeriod = 240; // ms
 
-        // --- Filtering ---
-        function applyMovingAverage(data, windowSize) {
-            if (data.length < windowSize) return data.length > 0 ? data[data.length - 1].z : 0; // Return last raw value if not enough data
-
-            let sum = 0;
-            for (let i = 1; i <= windowSize; i++) {
-                sum += data[data.length - i].z;
-            }
-            return sum / windowSize;
-        }
-
-        // --- Canvas Drawing ---
         function drawChart() {
-            const width = canvas.width;
-            const height = canvas.height;
-            ctx.clearRect(0, 0, width, height);
-
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             if (dataBuffer.length < 2) return;
 
-            // --- Y-Axis Scaling (Smoother) ---
-            const values = dataBuffer.map(d => d.z); // Scale based on raw data range
-            let minVal = Math.min(...values);
-            let maxVal = Math.max(...values);
-            const range = (maxVal - minVal) || 1; // Avoid division by zero
-            const padding = range * 0.1; // Add 10% padding
-            minVal -= padding;
-            maxVal += padding;
-            const effectiveRange = (maxVal - minVal) || 1;
-            const yScale = height / effectiveRange;
+            // Auto-scale Y-axis
+            const values = dataBuffer.map(d => d.z);
+            const minVal = Math.min(...values);
+            const maxVal = Math.max(...values);
+            const yScale = canvas.height / (maxVal - minVal || 1);
 
-            const mapY = (value) => height - (value - minVal) * yScale;
-
-            // --- Draw Threshold Line ---
-            const thresholdValue = parseFloat(thresholdInput.value);
-            const yThreshold = mapY(thresholdValue); // Apply scaling relative to filtered data context
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Accent color, semi-transparent
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
+            // Draw threshold line
+            const threshold = parseFloat(thresholdInput.value);
+            const yThreshold = canvas.height - (threshold - minVal) * yScale;
+            ctx.strokeStyle = '#00ff00';
+            ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.moveTo(0, yThreshold);
-            ctx.lineTo(width, yThreshold);
+            ctx.lineTo(canvas.width, yThreshold);
             ctx.stroke();
-            ctx.setLineDash([]); // Reset dash pattern
 
-            // --- Draw Raw Z-axis Data ---
-            ctx.strokeStyle = 'rgba(255, 80, 80, 0.8)'; // Primary color, slightly transparent
-            ctx.lineWidth = 1.5;
+            // Draw data
+            ctx.strokeStyle = '#ff4444';
+            ctx.setLineDash([]);
             ctx.beginPath();
             dataBuffer.forEach((point, i) => {
-                const x = (i / (BUFFER_SIZE -1)) * width; // Scale x across the full width
-                const y = mapY(point.z);
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
+                const x = (i / bufferSize) * canvas.width;
+                const y = canvas.height - (point.z - minVal) * yScale;
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
             });
             ctx.stroke();
 
-            // --- Draw Detected Peaks ---
-            ctx.fillStyle = var(--accent-color); // Bright green
+            // Draw peaks
+            ctx.fillStyle = '#00ff00';
             dataBuffer.forEach((point, i) => {
                 if (point.peak) {
-                    const x = (i / (BUFFER_SIZE -1)) * width;
-                    // Draw peak on the raw data line for visual clarity
-                    const y = mapY(point.z);
+                    const x = (i / bufferSize) * canvas.width;
+                    const y = canvas.height - (point.z - minVal) * yScale;
                     ctx.beginPath();
-                    ctx.arc(x, y, 4, 0, Math.PI * 2); // Slightly larger radius
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
                     ctx.fill();
                 }
             });
         }
 
-        // --- BPM Calculation ---
         function updateBPM() {
-            if (peakIntervals.length < 2) {
-                bpmDisplay.textContent = "-- BPM"; // Not enough data
-                return;
+            if (peaks.length < 2) return;
+            
+            const intervals = [];
+            for (let i = 1; i < peaks.length; i++) {
+                intervals.push(peaks[i].time - peaks[i-1].time);
             }
-
-            // Use the last N intervals for stability
-            const intervalsToUse = peakIntervals.slice(-BPM_CALCULATION_WINDOW);
-            const avgInterval = intervalsToUse.reduce((sum, interval) => sum + interval, 0) / intervalsToUse.length;
-
-            if (avgInterval > 0) {
-                const bpm = Math.round(60000 / avgInterval);
-                 if (bpm > 30 && bpm < 220) { // Basic sanity check for BPM range
-                    bpmDisplay.textContent = `${bpm} BPM`;
-                    bpmDisplay.classList.add('detected');
-                    // Remove class after animation naturally finishes (slightly longer than animation)
-                    setTimeout(() => bpmDisplay.classList.remove('detected'), 500);
-                } else {
-                    bpmDisplay.textContent = "-- BPM"; // Reset if BPM is out of range
-                }
-            } else {
-                 bpmDisplay.textContent = "-- BPM";
-            }
+            const avgInterval = intervals.reduce((a,b) => a + b) / intervals.length;
+            const bpm = Math.round(60000 / avgInterval);
+            
+            bpmDisplay.textContent = `${bpm} BPM`;
+            bpmDisplay.classList.add('detected');
+            setTimeout(() => bpmDisplay.classList.remove('detected'), 200);
         }
 
-        // --- Data Processing & Peak Detection ---
-        function processData(zValue) {
+        function processData(z) {
             const now = Date.now();
-            const filterWindow = parseInt(filterWindowInput.value) || 5;
+            dataBuffer.push({
+                z: z,
+                time: now,
+                peak: false
+            });
 
-            // Add new raw data point
-            const newDataPoint = { time: now, z: zValue, fz: 0, peak: false };
-            dataBuffer.push(newDataPoint);
+            if (dataBuffer.length > bufferSize) dataBuffer.shift();
 
-            // Apply filter (only possible if buffer has enough data)
-            newDataPoint.fz = applyMovingAverage(dataBuffer, filterWindow);
-
-            // Trim buffer if it exceeds size
-            while (dataBuffer.length > BUFFER_SIZE) {
-                dataBuffer.shift();
-            }
-
-            // --- Peak Detection Logic (using filtered data) ---
-            const currentFilteredZ = newDataPoint.fz;
-            const threshold = parseFloat(thresholdInput.value);
-
-            // Basic peak condition: value exceeds threshold & enough time passed since last peak
-            if (currentFilteredZ > threshold && (now - lastPeakTime > REFRACTORY_PERIOD_MS)) {
-
-                 // More robust check: Is this point higher than its neighbors (within filter window)?
-                 // This helps avoid detecting peaks on flat plateaus above threshold.
-                 const lookback = Math.min(dataBuffer.length - 1, Math.floor(filterWindow / 2));
-                 let isLocalMaximum = true;
-                 if (lookback > 0) {
-                    for (let i = 1; i <= lookback; i++) {
-                        if (dataBuffer[dataBuffer.length - 1 - i].fz >= currentFilteredZ) {
-                            isLocalMaximum = false;
-                            break;
-                        }
-                    }
-                 }
-                // (Future improvement: could also check if value starts decreasing *after* this point)
-
-                if (isLocalMaximum) {
-                    lastPeakTime = now;
-                    newDataPoint.peak = true; // Mark the peak on the *raw* data point for drawing
-
-                    // Calculate interval and add to intervals array
-                    if (peakIntervals.length > 0 || peaks.length > 0) { // Need a previous peak to calculate interval
-                        const previousPeakTime = peaks.length > 0 ? peaks[peaks.length - 1].time : 0; // Fallback, ideally use last interval end time
-                         if (previousPeakTime > 0) {
-                            const interval = now - previousPeakTime;
-                             // Basic interval sanity check (e.g., 270ms+ corresponds to < 220 BPM)
-                             if (interval >= REFRACTORY_PERIOD_MS && interval < 2000) { // Max 30 BPM
-                                peakIntervals.push(interval);
-                                // Keep only the last N intervals + buffer
-                                while (peakIntervals.length > BPM_CALCULATION_WINDOW + 5) {
-                                    peakIntervals.shift();
-                                }
-                             }
-                         }
-                    }
-                     // Simple peak storage (could be removed if only intervals are needed)
-                     peaks.push({ time: now, value: zValue });
-                     if (peaks.length > 10) peaks.shift(); // Keep limited history of peaks themselves
-
-                    updateBPM(); // Update BPM display
-                }
+            // Apply threshold directly to raw Z-axis data
+            if (z > thresholdInput.value && 
+                now - lastPeakTime > refractoryPeriod) {
+                lastPeakTime = now;
+                peaks.push({ time: now, value: z });
+                dataBuffer[dataBuffer.length - 1].peak = true;
+                if (peaks.length > 10) peaks.shift();
+                updateBPM();
             }
         }
-        // Dummy 'peaks' array needed for processData logic, might refactor later
-        let peaks = [];
 
-        // --- Main Animation Loop ---
-        function animationLoop() {
-            if (!isMonitoring) return;
-            drawChart();
-            animationFrameId = requestAnimationFrame(animationLoop);
-        }
-
-        // --- Sensor Handling ---
         function handleMotion(event) {
-            if (!isMonitoring || !event.acceleration) return;
-            // Using event.acceleration which *should* exclude gravity
-            // Fallback or alternative: event.accelerationIncludingGravity.z and try to filter gravity
-            const z = event.acceleration.z;
-             if (z !== null && z !== undefined) {
-                processData(z);
-                // Drawing is now handled by animationLoop
-            }
+            if (!isMonitoring) return;
+            const z = event.acceleration.z; // Raw Z without gravity
+            processData(z);
+            drawChart();
         }
 
-        function startSensor() {
-            try {
-                // Standard 'devicemotion' (newer API potentially needed for high frequency)
-                // For higher frequency (might not be supported everywhere):
-                // motionSensor = new Accelerometer({ frequency: 60 });
-                // motionSensor.addEventListener('reading', () => handleMotion({ acceleration: motionSensor }));
-                // motionSensor.start();
-
-                // Stick to devicemotion for broader compatibility first
-                 if (motionSensor) { // If using Accelerometer API, ensure it's stopped first
-                     motionSensor.stop();
-                     motionSensor = null;
-                 }
-                window.addEventListener('devicemotion', handleMotion);
-                statusText.textContent = 'Monitoring... Hold phone firmly on chest and stay still.';
-                isMonitoring = true;
-                toggleBtn.textContent = 'Stop Monitoring';
-                toggleBtn.classList.add('monitoring');
-
-                // Reset state
-                lastPeakTime = 0;
-                peakIntervals = [];
-                peaks = []; // Also reset simple peaks array
-                dataBuffer = [];
-                bpmDisplay.textContent = "-- BPM";
-
-                // Start drawing loop
-                 if (animationFrameId) cancelAnimationFrame(animationFrameId); // Clear previous loop if any
-                animationLoop();
-
-            } catch (error) {
-                console.error('Error starting sensor:', error);
-                statusText.textContent = `Error: ${error.name} - ${error.message}. Sensor might not be supported or permission denied.`;
-                 isMonitoring = false;
-                 toggleBtn.textContent = 'Start Monitoring';
-                 toggleBtn.classList.remove('monitoring');
-            }
-        }
-
-        function stopSensor() {
-            isMonitoring = false;
-            window.removeEventListener('devicemotion', handleMotion);
-             if (motionSensor) { // If using Accelerometer API
-                 motionSensor.stop();
-                 motionSensor = null;
-             }
-            toggleBtn.textContent = 'Start Monitoring';
-            toggleBtn.classList.remove('monitoring');
-            statusText.textContent = 'Monitoring stopped.';
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-             // Optional: Clear chart after stopping?
-             // setTimeout(() => ctx.clearRect(0, 0, canvas.width, canvas.height), 100);
-        }
-
-        // --- Button Logic & Permissions ---
         toggleBtn.addEventListener('click', async () => {
             if (isMonitoring) {
-                stopSensor();
+                isMonitoring = false;
+                toggleBtn.textContent = 'Start Monitoring';
+                statusText.textContent = 'Monitoring stopped';
+                window.removeEventListener('devicemotion', handleMotion);
                 return;
             }
 
-            // --- Request Permissions (iOS Safari mainly) ---
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                statusText.textContent = 'Requesting sensor permission...';
+            if (typeof DeviceMotionEvent !== 'undefined' && 
+                typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
-                    const permissionState = await DeviceMotionEvent.requestPermission();
-                    if (permissionState === 'granted') {
-                         statusText.textContent = 'Permission granted. Starting...';
-                        startSensor();
-                    } else {
-                        statusText.textContent = 'Permission denied. Cannot access motion sensors.';
-                    }
-                } catch (error) {
-                    console.error('Permission request error:', error);
-                    statusText.textContent = 'Error requesting permission.';
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    if (permission !== 'granted') return;
+                } catch (e) {
+                    console.error(e);
+                    return;
                 }
-            } else if (typeof DeviceMotionEvent !== 'undefined' || typeof Accelerometer !== 'undefined') {
-                 // Assume permission is granted or not needed (Android/other browsers)
-                 statusText.textContent = 'Starting sensor...';
-                 startSensor();
             }
-             else {
-                statusText.textContent = 'Device motion sensors not supported by this browser.';
-            }
+
+            isMonitoring = true;
+            peaks = [];
+            dataBuffer = [];
+            lastPeakTime = 0;
+            toggleBtn.textContent = 'Stop Monitoring';
+            statusText.textContent = 'Monitoring...';
+            window.addEventListener('devicemotion', handleMotion);
         });
 
-        // --- Initial Canvas Setup & Resize ---
+        // Initialize canvas size
         function resizeCanvas() {
-            // Get the actual display size of the canvas element
-             const displayWidth = canvas.clientWidth;
-             const displayHeight = canvas.clientHeight;
-
-             // Check if the canvas size needs changing (prevents unnecessary redraws)
-            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
-                canvas.width = displayWidth;
-                canvas.height = displayHeight;
-                // Redraw immediately after resize if monitoring
-                if (isMonitoring) {
-                     drawChart(); // Redraw with new dimensions
-                }
-                 console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
-            }
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
         }
-
-         // Use ResizeObserver for more reliable resize detection
-         const resizeObserver = new ResizeObserver(entries => {
-             // We only observe one element, so entries[0] is fine
-            resizeCanvas();
-         });
-         resizeObserver.observe(canvas);
-
-        // Initial size setup
-        resizeCanvas(); // Call once initially
-
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
     </script>
 </body>
 </html>
