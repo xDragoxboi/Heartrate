@@ -2,7 +2,7 @@
 [![Try Now](https://img.shields.io/badge/Try%20Now-Browser%20Version-blue?style=for-the-badge)](https://xdragoxboi.github.io/Heartrate/)
 
 ## Note and Info
-Live version may not be as accurate due to browser limitations and lower polling rates.
+The live browser version has been significantly updated! It now features improved processing (low-pass filtering and dynamic threshold detection) directly in your browser for better accuracy. While browser sensor polling rates can still be a factor, the detection logic is much more robust. It's also now a single, self-contained HTML file!
 
 Detect heartbeats using Z-axis accelerometer data recorded by the Phyphox app.
 
@@ -11,6 +11,7 @@ Detect heartbeats using Z-axis accelerometer data recorded by the Phyphox app.
 - Peak detection algorithm
 - Heart rate calculation (BPM)
 - Visualization of raw/filtered data
+*Many of these features, including advanced filtering and peak detection, are now also implemented in the live browser version!*
 
 ## Requirements
 - Python 3.8+
