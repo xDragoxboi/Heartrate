@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
     <meta name="google-site-verification" content="ZqQN2ihzaAli8qWJ-hDvcNWZuUKIvLMj-kQPHY5Z_ls" />
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,7 +51,6 @@
 <body>
     <h1>Live Heartbeat Detector 🐉</h1>
     <div class="controls">
-        <input type="number" id="threshold" step="0.1" value="0.3" placeholder="Threshold">
         <button id="toggleBtn">Start Monitoring</button>
     </div>
     <canvas id="chart"></canvas>
@@ -62,62 +60,145 @@
     <script>
         const canvas = document.getElementById('chart');
         const ctx = canvas.getContext('2d');
-        const thresholdInput = document.getElementById('threshold');
         const toggleBtn = document.getElementById('toggleBtn');
         const bpmDisplay = document.getElementById('bpm');
         const statusText = document.getElementById('status');
 
+        let biquadFilter = null;
+        let currentDynamicThreshold = 0.3;
+
+        class BiquadFilter {
+            constructor(type, cutoff, sampleRate, q) {
+                this.type = type;
+                this.cutoff = cutoff;
+                this.sampleRate = sampleRate;
+                this.q = q;
+                this.z1 = 0;
+                this.z2 = 0;
+                this.calcCoeffs();
+            }
+
+            calcCoeffs() {
+                if (this.type === 'lowpass') {
+                    const K = Math.tan(Math.PI * this.cutoff / this.sampleRate);
+                    const norm = 1 / (1 + K / this.q + K * K);
+                    this.a0 = K * K * norm;
+                    this.a1 = 2 * this.a0;
+                    this.a2 = this.a0;
+                    this.b1 = 2 * (K * K - 1) * norm;
+                    this.b2 = (1 - K / this.q + K * K) * norm;
+                }
+            }
+
+            process(input) {
+                const out = input * this.a0 + this.z1;
+                this.z1 = input * this.a1 + this.z2 - this.b1 * out;
+                this.z2 = input * this.a2 - this.b2 * out;
+                return out;
+            }
+        }
+
         let isMonitoring = false;
         let lastPeakTime = 0;
         let peaks = [];
-        let dataBuffer = [];
-        const bufferSize = 500; // 2 seconds at 100Hz
-        const sampleRate = 100; // Hz
-        const refractoryPeriod = 240; // ms
+        let dataBuffer = []; // Will be reset in startMonitoring
+        const bufferSize = 500; // Max data points for chart, not strictly enforced on dataBuffer for calculation
+        const sampleRate = 100; // Hz - Used in BiquadFilter
+        const refractoryPeriod = 240; // ms - Maintained from original logic
 
         function drawChart() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            if (dataBuffer.length < 2) return;
+            if (dataBuffer.length < 2) {
+                // Optional: Display a message if no data or not enough data
+                // ctx.fillText("Collecting data...", canvas.width / 2, canvas.height / 2);
+                return;
+            }
 
-            // Auto-scale Y-axis
-            const values = dataBuffer.map(d => d.z);
-            const minVal = Math.min(...values);
-            const maxVal = Math.max(...values);
-            const yScale = canvas.height / (maxVal - minVal || 1);
+            const values = dataBuffer.map(d => d.z).filter(v => !isNaN(v) && v !== undefined);
+            if (values.length < 2) {
+                 // ctx.fillText("Not enough data to draw...", canvas.width / 2, canvas.height / 2);
+                return;
+            }
 
-            // Draw threshold line
-            const threshold = parseFloat(thresholdInput.value);
-            const yThreshold = canvas.height - (threshold - minVal) * yScale;
+            let dataMin, dataMax;
+            if (values.length === 0) { // Should not happen due to earlier checks, but as a fallback
+                dataMin = -0.5;
+                dataMax = 0.5;
+            } else {
+                dataMin = Math.min(...values);
+                dataMax = Math.max(...values);
+            }
+
+            if (dataMin === dataMax) { // Handle flatline data
+                dataMin -= 0.25;
+                dataMax += 0.25;
+            }
+
+            const dataRange = dataMax - dataMin;
+            const graphRange = Math.max(0.5, dataRange); // Ensure a minimum range of 0.5 for Y-axis
+
+            const finalMinVal = dataMin - graphRange * 0.1; // Add 10% padding below
+            const finalMaxVal = dataMax + graphRange * 0.1; // Add 10% padding above
+            const yScale = canvas.height / (finalMaxVal - finalMinVal || 1); // || 1 to prevent div by zero
+
+            // Add background grid
+            ctx.strokeStyle = '#333'; // Lighter grid lines
+            ctx.lineWidth = 0.5;
+            ctx.setLineDash([]); // Ensure solid lines for grid
+            for (let i = 1; i < 4; i++) { // 3 lines for 25%, 50%, 75%
+                const yGrid = canvas.height * (i / 4);
+                ctx.beginPath();
+                ctx.moveTo(0, yGrid);
+                ctx.lineTo(canvas.width, yGrid);
+                ctx.stroke();
+            }
+            ctx.lineWidth = 1; // Reset line width for data and threshold lines
+
+            // Draw dynamic threshold line using finalMinVal
+            const yThreshold = canvas.height - (currentDynamicThreshold - finalMinVal) * yScale;
             ctx.strokeStyle = '#00ff00';
             ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.moveTo(0, yThreshold);
             ctx.lineTo(canvas.width, yThreshold);
             ctx.stroke();
-
-            // Draw data
-            ctx.strokeStyle = '#ff4444';
             ctx.setLineDash([]);
+
+            ctx.strokeStyle = '#ff4444';
             ctx.beginPath();
-            dataBuffer.forEach((point, i) => {
-                const x = (i / bufferSize) * canvas.width;
-                const y = canvas.height - (point.z - minVal) * yScale;
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            });
+            let firstPoint = true;
+            for (let i = 0; i < dataBuffer.length; i++) {
+                if (isNaN(dataBuffer[i].z) || dataBuffer[i].z === undefined) continue;
+
+                const x = (i / (dataBuffer.length -1)) * canvas.width;
+                // Use finalMinVal for y calculation
+                const y = canvas.height - (dataBuffer[i].z - finalMinVal) * yScale;
+                if (firstPoint) {
+                    ctx.moveTo(x,y);
+                    firstPoint = false;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
             ctx.stroke();
 
-            // Draw peaks
             ctx.fillStyle = '#00ff00';
             dataBuffer.forEach((point, i) => {
-                if (point.peak) {
-                    const x = (i / bufferSize) * canvas.width;
-                    const y = canvas.height - (point.z - minVal) * yScale;
+                if (point.peak && !isNaN(point.z) && point.z !== undefined) {
+                    const x = (i / (dataBuffer.length - 1)) * canvas.width;
+                    // Use finalMinVal for y calculation of peak
+                    const y = canvas.height - (point.z - finalMinVal) * yScale;
                     ctx.beginPath();
-                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.arc(x, y, 5, 0, 2 * Math.PI);
                     ctx.fill();
                 }
             });
+
+            ctx.fillStyle = 'white';
+            // Display finalMinVal and finalMaxVal (or dataMin/dataMax if preferred for labels)
+            ctx.fillText(finalMaxVal.toFixed(2), 5, 15);
+            ctx.fillText(finalMinVal.toFixed(2), 5, canvas.height - 5);
         }
 
         function updateBPM() {
@@ -135,30 +216,47 @@
             setTimeout(() => bpmDisplay.classList.remove('detected'), 200);
         }
 
-        function processData(z) {
+        function processData(zRaw) {
             const now = Date.now();
-            dataBuffer.push({
-                z: z,
-                time: now,
-                peak: false
-            });
+            if (!biquadFilter) {
+                console.error("Biquad filter not initialized in processData!");
+                biquadFilter = new BiquadFilter('lowpass', 5, 100, 0.7071);
+            }
+            const filteredZ = biquadFilter.process(zRaw);
 
-            if (dataBuffer.length > bufferSize) dataBuffer.shift();
+            dataBuffer.push({ z: filteredZ, time: now, peak: false });
+            while (dataBuffer.length > bufferSize) {
+                dataBuffer.shift();
+            }
 
-            // Apply threshold directly to raw Z-axis data
-            if (z > thresholdInput.value && 
-                now - lastPeakTime > refractoryPeriod) {
+            if (dataBuffer.length > 0) {
+                const values = dataBuffer.map(d => d.z).filter(v => !isNaN(v) && v !== undefined);
+                if (values.length > 0) {
+                    const maxHistVal = Math.max(...values);
+                    currentDynamicThreshold = 0.26 * maxHistVal;
+                } else {
+                    currentDynamicThreshold = 0.3;
+                }
+            } else {
+                currentDynamicThreshold = 0.3;
+            }
+
+            if (filteredZ > currentDynamicThreshold && (now - lastPeakTime > refractoryPeriod)) {
                 lastPeakTime = now;
-                peaks.push({ time: now, value: z });
-                dataBuffer[dataBuffer.length - 1].peak = true;
-                if (peaks.length > 10) peaks.shift();
+                peaks.push({ time: now, value: filteredZ });
+                if (dataBuffer.length > 0) {
+                    dataBuffer[dataBuffer.length - 1].peak = true;
+                }
+                if (peaks.length > 10) {
+                    peaks.shift();
+                }
                 updateBPM();
             }
         }
 
         function handleMotion(event) {
             if (!isMonitoring) return;
-            const z = event.acceleration.z; // Raw Z without gravity
+            const z = event.acceleration.z;
             processData(z);
             drawChart();
         }
@@ -167,7 +265,7 @@
             if (isMonitoring) {
                 isMonitoring = false;
                 toggleBtn.textContent = 'Start Monitoring';
-                statusText.textContent = 'Monitoring stopped';
+                statusText.textContent = 'Monitoring stopped. Press Start to begin again.';
                 window.removeEventListener('devicemotion', handleMotion);
                 return;
             }
@@ -176,26 +274,34 @@
                 typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const permission = await DeviceMotionEvent.requestPermission();
-                    if (permission !== 'granted') return;
+                    if (permission !== 'granted') {
+                        statusText.textContent = 'Permission to access motion sensors denied.';
+                        alert('Device Motion permission not granted. Please enable it in your browser settings.');
+                        return;
+                    }
                 } catch (e) {
                     console.error(e);
+                    statusText.textContent = 'Permission to access motion sensors denied.';
+                    alert('Error requesting Device Motion permission.');
                     return;
                 }
             }
 
             isMonitoring = true;
-            peaks = [];
+            biquadFilter = new BiquadFilter('lowpass', 5, 100, 0.7071);
             dataBuffer = [];
+            peaks = [];
             lastPeakTime = 0;
+            currentDynamicThreshold = 0.3;
             toggleBtn.textContent = 'Stop Monitoring';
-            statusText.textContent = 'Monitoring...';
+            statusText.textContent = 'Monitoring... Trying to detect heartbeat.';
             window.addEventListener('devicemotion', handleMotion);
         });
 
-        // Initialize canvas size
         function resizeCanvas() {
             canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            canvas.height = 300;
+            drawChart();
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
